@@ -4,21 +4,26 @@
  * POST /api/login.php
  * 参数: username, password
  */
-require_once __DIR__ . '/../includes/config.php';
-
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    errorResponse('请求方式错误');
-}
-
-$data = json_decode(file_get_contents('php://input'), true);
-$username = isset($data['username']) ? trim($data['username']) : '';
-$password = isset($data['password']) ? $data['password'] : '';
-
-if (empty($username) || empty($password)) {
-    errorResponse('请输入账号和密码');
-}
-
 try {
+    require_once __DIR__ . '/../includes/config.php';
+
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        errorResponse('请求方式错误');
+    }
+
+    $rawBody = file_get_contents('php://input');
+    $data = json_decode($rawBody, true);
+    if (!is_array($data)) {
+        errorResponse('请求体格式错误');
+    }
+
+    $username = isset($data['username']) ? trim($data['username']) : '';
+    $password = isset($data['password']) ? $data['password'] : '';
+
+    if (empty($username) || empty($password)) {
+        errorResponse('请输入账号和密码');
+    }
+
     $pdo = getDB();
     $stmt = $pdo->prepare("SELECT u.*, r.name as role_name, r.label as role_label, r.permissions as role_permissions 
                            FROM users u 
@@ -27,8 +32,11 @@ try {
     $stmt->execute([$username]);
     $user = $stmt->fetch();
     
-    if (!$user || !password_verify($password, $user['password'])) {
-        errorResponse('账号或密码错误');
+    if (!$user) {
+        errorResponse('账号不存在');
+    }
+    if (!password_verify($password, $user['password'])) {
+        errorResponse('密码错误');
     }
     
     // 生成 token（兼容 PHP 5.6+）
@@ -59,6 +67,8 @@ try {
         'permissions' => $permissions,
         'token' => $token,
     ], '登录成功');
-} catch (PDOException $e) {
-    errorResponse('登录失败: ' . $e->getMessage(), 500);
+} catch (Exception $e) {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(['success' => false, 'message' => '服务器错误: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    exit;
 }
