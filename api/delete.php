@@ -10,6 +10,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     errorResponse('请求方式错误');
 }
 
+requirePermission('product.delete');
+
 $data = json_decode(file_get_contents('php://input'), true);
 $id = isset($data['id']) ? intval($data['id']) : 0;
 

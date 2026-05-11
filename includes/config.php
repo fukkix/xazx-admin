@@ -5,8 +5,8 @@
 
 // 跨域设置（开发环境）
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
+header('Access-Control-Allow-Headers: Content-Type, X-Token, X-Requested-With');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit;
@@ -34,7 +34,28 @@ define('ALLOWED_TYPES', [
     'image/jpg' => 'jpg',
     'application/zip' => 'zip',
     'application/x-zip-compressed' => 'zip',
+    'text/markdown' => 'md',
+    'text/plain' => 'txt',
 ]);
+
+/**
+ * 权限定义
+ */
+$ALL_PERMISSIONS = [
+    'product.view' => '查看产品资料',
+    'product.upload' => '上传产品资料',
+    'product.audit' => '审核产品资料',
+    'product.delete' => '删除产品资料',
+    'wiki.view' => '查看知识库',
+    'wiki.edit' => '编辑知识库',
+    'wiki.audit' => '审核知识库',
+    'account.view' => '查看账号列表',
+    'account.create' => '创建账号',
+    'account.edit' => '编辑账号',
+    'account.delete' => '删除/禁用账号',
+    'role.manage' => '管理角色权限',
+    'system.log' => '查看系统日志',
+];
 
 /**
  * 产品分类
@@ -43,8 +64,10 @@ $PRODUCTS = [
     ['id' => 1, 'name' => '网站监测系统', 'code' => 'website_monitor'],
     ['id' => 2, 'name' => 'WAF', 'code' => 'waf'],
     ['id' => 3, 'name' => '动态防御', 'code' => 'dynamic_defense'],
-    ['id' => 4, 'name' => '全流量威胁分析系统', 'code' => 'traffic_analysis'],
-    ['id' => 5, 'name' => 'API功能模块', 'code' => 'api_module'],
+    ['id' => 4, 'name' => '全流量分析', 'code' => 'traffic_analysis'],
+    ['id' => 5, 'name' => 'API模块', 'code' => 'api_module'],
+    ['id' => 6, 'name' => '大模型安全', 'code' => 'llm_security'],
+    ['id' => 7, 'name' => '其他', 'code' => 'other'],
 ];
 
 /**
@@ -103,4 +126,61 @@ function errorResponse($message, $code = 400) {
  */
 function successResponse($data = null, $message = '操作成功') {
     jsonResponse(['success' => true, 'message' => $message, 'data' => $data]);
+}
+
+/**
+ * 获取当前登录用户
+ */
+function getCurrentUser() {
+    $token = $_SERVER['HTTP_X_TOKEN'] ?? '';
+    if (empty($token)) return null;
+    try {
+        $pdo = getDB();
+        $stmt = $pdo->prepare("SELECT u.*, r.name as role_name, r.label as role_label, r.permissions as role_permissions, r.is_system as role_is_system 
+                               FROM users u 
+                               JOIN roles r ON u.role_id = r.id 
+                               WHERE u.token = ? AND u.token_expires_at > NOW() AND u.status = 1");
+        $stmt->execute([$token]);
+        $user = $stmt->fetch();
+        if ($user) {
+            $user['permissions'] = json_decode($user['role_permissions'] ?? '[]', true);
+            unset($user['password'], $user['role_permissions']);
+        }
+        return $user;
+    } catch (PDOException $e) {
+        return null;
+    }
+}
+
+/**
+ * 要求登录
+ */
+function requireAuth() {
+    $user = getCurrentUser();
+    if (!$user) {
+        errorResponse('未登录或登录已过期', 401);
+    }
+    return $user;
+}
+
+/**
+ * 要求指定权限
+ */
+function requirePermission($permission) {
+    $user = requireAuth();
+    $permissions = $user['permissions'] ?? [];
+    if (!in_array($permission, $permissions)) {
+        errorResponse('权限不足: ' . $permission, 403);
+    }
+    return $user;
+}
+
+/**
+ * 检查是否有指定权限
+ */
+function hasPermission($permission) {
+    $user = getCurrentUser();
+    if (!$user) return false;
+    $permissions = $user['permissions'] ?? [];
+    return in_array($permission, $permissions);
 }

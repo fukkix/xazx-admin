@@ -10,6 +10,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     errorResponse('请求方式错误');
 }
 
+// 权限检查：上传资料需要 product.upload 权限
+$user = getCurrentUser();
+if (!$user || !hasPermission('product.upload')) {
+    errorResponse('权限不足，无法上传资料', 403);
+}
+
 // 获取参数
 $product_id = isset($_POST['product_id']) ? intval($_POST['product_id']) : 0;
 $category_id = isset($_POST['category_id']) ? intval($_POST['category_id']) : 0;
@@ -64,9 +70,12 @@ if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
 }
 
 // 写入数据库
+// 有审核权限的直接 approved，没有则 pending
+$status = hasPermission('product.audit') ? 'approved' : 'pending';
+
 try {
     $pdo = getDB();
-    $stmt = $pdo->prepare("INSERT INTO files (title, product_id, category_id, file_name, file_path, file_size, file_type, description) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt = $pdo->prepare("INSERT INTO files (title, product_id, category_id, file_name, file_path, file_size, file_type, description, status, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->execute([
         $title,
         $product_id,
@@ -75,7 +84,9 @@ try {
         $relativePath,
         $file['size'],
         $ext,
-        $description
+        $description,
+        $status,
+        $user['id']
     ]);
     
     $fileId = $pdo->lastInsertId();
@@ -85,8 +96,9 @@ try {
         'file_name' => $file['name'],
         'file_path' => $relativePath,
         'file_size' => $file['size'],
-        'file_type' => $ext
-    ], '上传成功');
+        'file_type' => $ext,
+        'status' => $status,
+    ], $status === 'pending' ? '上传成功，等待审核' : '上传成功');
 } catch (PDOException $e) {
     // 删除已上传的文件
     if (file_exists($targetPath)) {
