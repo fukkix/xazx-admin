@@ -31,8 +31,14 @@ try {
         errorResponse('账号或密码错误');
     }
     
-    // 生成 token
-    $token = bin2hex(random_bytes(32));
+    // 生成 token（兼容 PHP 5.6+）
+    if (function_exists('random_bytes')) {
+        $token = bin2hex(random_bytes(32));
+    } elseif (function_exists('openssl_random_pseudo_bytes')) {
+        $token = bin2hex(openssl_random_pseudo_bytes(32));
+    } else {
+        $token = md5(uniqid(mt_rand(), true) . time());
+    }
     $expires = date('Y-m-d H:i:s', strtotime('+7 days'));
     
     $stmt = $pdo->prepare("UPDATE users SET token = ?, token_expires_at = ? WHERE id = ?");

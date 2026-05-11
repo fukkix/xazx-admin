@@ -3,6 +3,10 @@
  * 数据库配置
  */
 
+// 禁止 PHP 直接输出错误信息（防止破坏 JSON 响应）
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+
 // 跨域设置（开发环境）
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
