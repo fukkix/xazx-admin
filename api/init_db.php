@@ -102,7 +102,7 @@ try {
         [1, 'super_admin', '系统超管', '系统内置超级管理员，拥有所有权限', 1, json_encode($allPerms)],
         [2, 'admin', '管理员', '可管理资料、审核、用户，但不能管理角色', 1, json_encode(['product.view','product.upload','product.audit','product.delete','wiki.view','wiki.edit','wiki.audit','account.view','account.create','account.edit','account.delete','system.log'])],
         [3, 'uploader', '资料上传员', '可上传资料和编辑知识库', 1, json_encode(['product.view','product.upload','wiki.view','wiki.edit'])],
-        [4, 'viewer', '访客', '仅可查看资料', 1, json_encode(['product.view','wiki.view'])],
+
     ];
     foreach ($roles as $r) {
         $stmt->execute($r);
